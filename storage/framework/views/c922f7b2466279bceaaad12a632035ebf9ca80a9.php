@@ -1,3 +1,4 @@
+<?php /*Chứa danh sách các sản phẩm của công ty*/ ?>
 
 <div class="view">
     <div id="loader_view"></div>
