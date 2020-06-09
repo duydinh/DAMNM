@@ -2,8 +2,9 @@
 
 namespace Illuminate\Mail\Transport;
 
+use Swift_Mime_Message;
+use GuzzleHttp\Post\PostFile;
 use GuzzleHttp\ClientInterface;
-use Swift_Mime_SimpleMessage;
 
 class MailgunTransport extends Transport
 {
@@ -22,18 +23,18 @@ class MailgunTransport extends Transport
     protected $key;
 
     /**
-     * The Mailgun email domain.
+     * The Mailgun domain.
      *
      * @var string
      */
     protected $domain;
 
     /**
-     * The Mailgun API endpoint.
+     * THe Mailgun API end-point.
      *
      * @var string
      */
-    protected $endpoint;
+    protected $url;
 
     /**
      * Create a new Mailgun transport instance.
@@ -41,113 +42,62 @@ class MailgunTransport extends Transport
      * @param  \GuzzleHttp\ClientInterface  $client
      * @param  string  $key
      * @param  string  $domain
-     * @param  string|null  $endpoint
      * @return void
      */
-    public function __construct(ClientInterface $client, $key, $domain, $endpoint = null)
+    public function __construct(ClientInterface $client, $key, $domain)
     {
         $this->key = $key;
         $this->client = $client;
-        $this->endpoint = $endpoint ?? 'api.mailgun.net';
-
         $this->setDomain($domain);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function send(Swift_Mime_SimpleMessage $message, &$failedRecipients = null)
+    public function send(Swift_Mime_Message $message, &$failedRecipients = null)
     {
         $this->beforeSendPerformed($message);
 
-        $to = $this->getTo($message);
+        $options = ['auth' => ['api', $this->key]];
 
-        $bcc = $message->getBcc();
+        $to = $this->getTo($message);
 
         $message->setBcc([]);
 
-        $response = $this->client->request(
-            'POST',
-            "https://{$this->endpoint}/v3/{$this->domain}/messages.mime",
-            $this->payload($message, $to)
-        );
+        if (version_compare(ClientInterface::VERSION, '6') === 1) {
+            $options['multipart'] = [
+                ['name' => 'to', 'contents' => $to],
+                ['name' => 'message', 'contents' => $message->toString(), 'filename' => 'message.mime'],
+            ];
+        } else {
+            $options['body'] = [
+                'to' => $to,
+                'message' => new PostFile('message', $message->toString()),
+            ];
+        }
 
-        $message->getHeaders()->addTextHeader(
-            'X-Mailgun-Message-ID', $this->getMessageId($response)
-        );
-
-        $message->setBcc($bcc);
-
-        $this->sendPerformed($message);
-
-        return $this->numberOfRecipients($message);
-    }
-
-    /**
-     * Get the HTTP payload for sending the Mailgun message.
-     *
-     * @param  \Swift_Mime_SimpleMessage  $message
-     * @param  string  $to
-     * @return array
-     */
-    protected function payload(Swift_Mime_SimpleMessage $message, $to)
-    {
-        return [
-            'auth' => [
-                'api',
-                $this->key,
-            ],
-            'multipart' => [
-                [
-                    'name' => 'to',
-                    'contents' => $to,
-                ],
-                [
-                    'name' => 'message',
-                    'contents' => $message->toString(),
-                    'filename' => 'message.mime',
-                ],
-            ],
-        ];
+        return $this->client->post($this->url, $options);
     }
 
     /**
      * Get the "to" payload field for the API request.
      *
-     * @param  \Swift_Mime_SimpleMessage  $message
-     * @return string
-     */
-    protected function getTo(Swift_Mime_SimpleMessage $message)
-    {
-        return collect($this->allContacts($message))->map(function ($display, $address) {
-            return $display ? $display." <{$address}>" : $address;
-        })->values()->implode(',');
-    }
-
-    /**
-     * Get all of the contacts for the message.
-     *
-     * @param  \Swift_Mime_SimpleMessage  $message
+     * @param  \Swift_Mime_Message  $message
      * @return array
      */
-    protected function allContacts(Swift_Mime_SimpleMessage $message)
+    protected function getTo(Swift_Mime_Message $message)
     {
-        return array_merge(
+        $formatted = [];
+
+        $contacts = array_merge(
             (array) $message->getTo(), (array) $message->getCc(), (array) $message->getBcc()
         );
-    }
 
-    /**
-     * Get the message ID from the response.
-     *
-     * @param  \Psr\Http\Message\ResponseInterface  $response
-     * @return string
-     */
-    protected function getMessageId($response)
-    {
-        return object_get(
-            json_decode($response->getBody()->getContents()), 'id'
-        );
+        foreach ($contacts as $address => $display) {
+            $formatted[] = $display ? $display." <$address>" : $address;
+        }
+
+        return implode(',', $formatted);
     }
 
     /**
@@ -185,31 +135,12 @@ class MailgunTransport extends Transport
      * Set the domain being used by the transport.
      *
      * @param  string  $domain
-     * @return string
+     * @return void
      */
     public function setDomain($domain)
     {
+        $this->url = 'https://api.mailgun.net/v3/'.$domain.'/messages.mime';
+
         return $this->domain = $domain;
-    }
-
-    /**
-     * Get the API endpoint being used by the transport.
-     *
-     * @return string
-     */
-    public function getEndpoint()
-    {
-        return $this->endpoint;
-    }
-
-    /**
-     * Set the API endpoint being used by the transport.
-     *
-     * @param  string  $endpoint
-     * @return string
-     */
-    public function setEndpoint($endpoint)
-    {
-        return $this->endpoint = $endpoint;
     }
 }

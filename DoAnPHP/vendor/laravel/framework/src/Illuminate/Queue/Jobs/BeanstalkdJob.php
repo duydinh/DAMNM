@@ -2,10 +2,10 @@
 
 namespace Illuminate\Queue\Jobs;
 
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Queue\Job as JobContract;
-use Pheanstalk\Job as PheanstalkJob;
 use Pheanstalk\Pheanstalk;
+use Illuminate\Container\Container;
+use Pheanstalk\Job as PheanstalkJob;
+use Illuminate\Contracts\Queue\Job as JobContract;
 
 class BeanstalkdJob extends Job implements JobContract
 {
@@ -29,23 +29,56 @@ class BeanstalkdJob extends Job implements JobContract
      * @param  \Illuminate\Container\Container  $container
      * @param  \Pheanstalk\Pheanstalk  $pheanstalk
      * @param  \Pheanstalk\Job  $job
-     * @param  string  $connectionName
      * @param  string  $queue
      * @return void
      */
-    public function __construct(Container $container, Pheanstalk $pheanstalk, PheanstalkJob $job, $connectionName, $queue)
+    public function __construct(Container $container,
+                                Pheanstalk $pheanstalk,
+                                PheanstalkJob $job,
+                                $queue)
     {
         $this->job = $job;
         $this->queue = $queue;
         $this->container = $container;
         $this->pheanstalk = $pheanstalk;
-        $this->connectionName = $connectionName;
+    }
+
+    /**
+     * Fire the job.
+     *
+     * @return void
+     */
+    public function fire()
+    {
+        $this->resolveAndFire(json_decode($this->getRawBody(), true));
+    }
+
+    /**
+     * Get the raw body string for the job.
+     *
+     * @return string
+     */
+    public function getRawBody()
+    {
+        return $this->job->getData();
+    }
+
+    /**
+     * Delete the job from the queue.
+     *
+     * @return void
+     */
+    public function delete()
+    {
+        parent::delete();
+
+        $this->pheanstalk->delete($this->job);
     }
 
     /**
      * Release the job back into the queue.
      *
-     * @param  int  $delay
+     * @param  int   $delay
      * @return void
      */
     public function release($delay = 0)
@@ -70,18 +103,6 @@ class BeanstalkdJob extends Job implements JobContract
     }
 
     /**
-     * Delete the job from the queue.
-     *
-     * @return void
-     */
-    public function delete()
-    {
-        parent::delete();
-
-        $this->pheanstalk->delete($this->job);
-    }
-
-    /**
      * Get the number of times the job has been attempted.
      *
      * @return int
@@ -96,7 +117,7 @@ class BeanstalkdJob extends Job implements JobContract
     /**
      * Get the job identifier.
      *
-     * @return int
+     * @return string
      */
     public function getJobId()
     {
@@ -104,13 +125,13 @@ class BeanstalkdJob extends Job implements JobContract
     }
 
     /**
-     * Get the raw body string for the job.
+     * Get the IoC container instance.
      *
-     * @return string
+     * @return \Illuminate\Container\Container
      */
-    public function getRawBody()
+    public function getContainer()
     {
-        return $this->job->getData();
+        return $this->container;
     }
 
     /**

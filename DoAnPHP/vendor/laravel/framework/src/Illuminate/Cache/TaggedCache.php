@@ -6,9 +6,7 @@ use Illuminate\Contracts\Cache\Store;
 
 class TaggedCache extends Repository
 {
-    use RetrievesMultipleKeys {
-        putMany as putManyAlias;
-    }
+    use RetrievesMultipleKeys;
 
     /**
      * The tag set instance.
@@ -32,26 +30,20 @@ class TaggedCache extends Repository
     }
 
     /**
-     * Store multiple items in the cache for a given number of seconds.
-     *
-     * @param  array  $values
-     * @param  int|null  $ttl
-     * @return bool
+     * {@inheritdoc}
      */
-    public function putMany(array $values, $ttl = null)
+    protected function fireCacheEvent($event, $payload)
     {
-        if ($ttl === null) {
-            return $this->putManyForever($values);
-        }
+        $payload[] = $this->tags->getNames();
 
-        return $this->putManyAlias($values, $ttl);
+        parent::fireCacheEvent($event, $payload);
     }
 
     /**
      * Increment the value of an item in the cache.
      *
      * @param  string  $key
-     * @param  mixed  $value
+     * @param  mixed   $value
      * @return void
      */
     public function increment($key, $value = 1)
@@ -60,10 +52,10 @@ class TaggedCache extends Repository
     }
 
     /**
-     * Decrement the value of an item in the cache.
+     * Increment the value of an item in the cache.
      *
      * @param  string  $key
-     * @param  mixed  $value
+     * @param  mixed   $value
      * @return void
      */
     public function decrement($key, $value = 1)
@@ -74,13 +66,11 @@ class TaggedCache extends Repository
     /**
      * Remove all items from the cache.
      *
-     * @return bool
+     * @return void
      */
     public function flush()
     {
         $this->tags->reset();
-
-        return true;
     }
 
     /**
@@ -100,26 +90,5 @@ class TaggedCache extends Repository
     public function taggedItemKey($key)
     {
         return sha1($this->tags->getNamespace()).':'.$key;
-    }
-
-    /**
-     * Fire an event for this cache instance.
-     *
-     * @param  string  $event
-     * @return void
-     */
-    protected function event($event)
-    {
-        parent::event($event->setTags($this->tags->getNames()));
-    }
-
-    /**
-     * Get the tag set instance.
-     *
-     * @return \Illuminate\Cache\TagSet
-     */
-    public function getTags()
-    {
-        return $this->tags;
     }
 }

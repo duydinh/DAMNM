@@ -2,28 +2,21 @@
 
 namespace Illuminate\Broadcasting;
 
+use Pusher;
 use Closure;
-use Illuminate\Broadcasting\Broadcasters\LogBroadcaster;
-use Illuminate\Broadcasting\Broadcasters\NullBroadcaster;
-use Illuminate\Broadcasting\Broadcasters\PusherBroadcaster;
-use Illuminate\Broadcasting\Broadcasters\RedisBroadcaster;
-use Illuminate\Contracts\Broadcasting\Factory as FactoryContract;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
-use Illuminate\Contracts\Bus\Dispatcher as BusDispatcherContract;
-use Illuminate\Contracts\Foundation\CachesRoutes;
+use Illuminate\Support\Arr;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
-use Pusher\Pusher;
+use Illuminate\Broadcasting\Broadcasters\LogBroadcaster;
+use Illuminate\Broadcasting\Broadcasters\RedisBroadcaster;
+use Illuminate\Broadcasting\Broadcasters\PusherBroadcaster;
+use Illuminate\Contracts\Broadcasting\Factory as FactoryContract;
 
-/**
- * @mixin \Illuminate\Contracts\Broadcasting\Broadcaster
- */
 class BroadcastManager implements FactoryContract
 {
     /**
      * The application instance.
      *
-     * @var \Illuminate\Contracts\Container\Container
+     * @var \Illuminate\Foundation\Application
      */
     protected $app;
 
@@ -44,7 +37,7 @@ class BroadcastManager implements FactoryContract
     /**
      * Create a new manager instance.
      *
-     * @param  \Illuminate\Contracts\Container\Container  $app
+     * @param  \Illuminate\Foundation\Application  $app
      * @return void
      */
     public function __construct($app)
@@ -53,86 +46,9 @@ class BroadcastManager implements FactoryContract
     }
 
     /**
-     * Register the routes for handling broadcast authentication and sockets.
-     *
-     * @param  array|null  $attributes
-     * @return void
-     */
-    public function routes(array $attributes = null)
-    {
-        if ($this->app instanceof CachesRoutes && $this->app->routesAreCached()) {
-            return;
-        }
-
-        $attributes = $attributes ?: ['middleware' => ['web']];
-
-        $this->app['router']->group($attributes, function ($router) {
-            $router->match(
-                ['get', 'post'], '/broadcasting/auth',
-                '\\'.BroadcastController::class.'@authenticate'
-            );
-        });
-    }
-
-    /**
-     * Get the socket ID for the given request.
-     *
-     * @param  \Illuminate\Http\Request|null  $request
-     * @return string|null
-     */
-    public function socket($request = null)
-    {
-        if (! $request && ! $this->app->bound('request')) {
-            return;
-        }
-
-        $request = $request ?: $this->app['request'];
-
-        return $request->header('X-Socket-ID');
-    }
-
-    /**
-     * Begin broadcasting an event.
-     *
-     * @param  mixed|null  $event
-     * @return \Illuminate\Broadcasting\PendingBroadcast|void
-     */
-    public function event($event = null)
-    {
-        return new PendingBroadcast($this->app->make('events'), $event);
-    }
-
-    /**
-     * Queue the given event for broadcast.
-     *
-     * @param  mixed  $event
-     * @return void
-     */
-    public function queue($event)
-    {
-        if ($event instanceof ShouldBroadcastNow) {
-            return $this->app->make(BusDispatcherContract::class)->dispatchNow(new BroadcastEvent(clone $event));
-        }
-
-        $queue = null;
-
-        if (method_exists($event, 'broadcastQueue')) {
-            $queue = $event->broadcastQueue();
-        } elseif (isset($event->broadcastQueue)) {
-            $queue = $event->broadcastQueue;
-        } elseif (isset($event->queue)) {
-            $queue = $event->queue;
-        }
-
-        $this->app->make('queue')->connection($event->connection ?? null)->pushOn(
-            $queue, new BroadcastEvent(clone $event)
-        );
-    }
-
-    /**
      * Get a driver instance.
      *
-     * @param  string|null  $driver
+     * @param  string  $driver
      * @return mixed
      */
     public function connection($driver = null)
@@ -143,7 +59,7 @@ class BroadcastManager implements FactoryContract
     /**
      * Get a driver instance.
      *
-     * @param  string|null  $name
+     * @param  string  $name
      * @return mixed
      */
     public function driver($name = null)
@@ -161,11 +77,11 @@ class BroadcastManager implements FactoryContract
      */
     protected function get($name)
     {
-        return $this->drivers[$name] ?? $this->resolve($name);
+        return isset($this->drivers[$name]) ? $this->drivers[$name] : $this->resolve($name);
     }
 
     /**
-     * Resolve the given broadcaster.
+     * Resolve the given store.
      *
      * @param  string  $name
      * @return \Illuminate\Contracts\Broadcasting\Broadcaster
@@ -176,17 +92,21 @@ class BroadcastManager implements FactoryContract
     {
         $config = $this->getConfig($name);
 
+        if (is_null($config)) {
+            throw new InvalidArgumentException("Broadcaster [{$name}] is not defined.");
+        }
+
         if (isset($this->customCreators[$config['driver']])) {
             return $this->callCustomCreator($config);
+        } else {
+            $driverMethod = 'create'.ucfirst($config['driver']).'Driver';
+
+            if (method_exists($this, $driverMethod)) {
+                return $this->{$driverMethod}($config);
+            } else {
+                throw new InvalidArgumentException("Driver [{$config['driver']}] is not supported.");
+            }
         }
-
-        $driverMethod = 'create'.ucfirst($config['driver']).'Driver';
-
-        if (! method_exists($this, $driverMethod)) {
-            throw new InvalidArgumentException("Driver [{$config['driver']}] is not supported.");
-        }
-
-        return $this->{$driverMethod}($config);
     }
 
     /**
@@ -208,16 +128,9 @@ class BroadcastManager implements FactoryContract
      */
     protected function createPusherDriver(array $config)
     {
-        $pusher = new Pusher(
-            $config['key'], $config['secret'],
-            $config['app_id'], $config['options'] ?? []
+        return new PusherBroadcaster(
+            new Pusher($config['key'], $config['secret'], $config['app_id'], Arr::get($config, 'options', []))
         );
-
-        if ($config['log'] ?? false) {
-            $pusher->setLogger($this->app->make(LoggerInterface::class));
-        }
-
-        return new PusherBroadcaster($pusher);
     }
 
     /**
@@ -229,8 +142,7 @@ class BroadcastManager implements FactoryContract
     protected function createRedisDriver(array $config)
     {
         return new RedisBroadcaster(
-            $this->app->make('redis'), $config['connection'] ?? null,
-            $this->app['config']->get('database.redis.options.prefix', '')
+            $this->app->make('redis'), Arr::get($config, 'connection')
         );
     }
 
@@ -243,19 +155,8 @@ class BroadcastManager implements FactoryContract
     protected function createLogDriver(array $config)
     {
         return new LogBroadcaster(
-            $this->app->make(LoggerInterface::class)
+            $this->app->make('Psr\Log\LoggerInterface')
         );
-    }
-
-    /**
-     * Create an instance of the driver.
-     *
-     * @param  array  $config
-     * @return \Illuminate\Contracts\Broadcasting\Broadcaster
-     */
-    protected function createNullDriver(array $config)
-    {
-        return new NullBroadcaster;
     }
 
     /**
@@ -266,11 +167,7 @@ class BroadcastManager implements FactoryContract
      */
     protected function getConfig($name)
     {
-        if (! is_null($name) && $name !== 'null') {
-            return $this->app['config']["broadcasting.connections.{$name}"];
-        }
-
-        return ['driver' => 'null'];
+        return $this->app['config']["broadcasting.connections.{$name}"];
     }
 
     /**
@@ -297,7 +194,7 @@ class BroadcastManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
-     * @param  string  $driver
+     * @param  string    $driver
      * @param  \Closure  $callback
      * @return $this
      */
@@ -312,11 +209,11 @@ class BroadcastManager implements FactoryContract
      * Dynamically call the default driver instance.
      *
      * @param  string  $method
-     * @param  array  $parameters
+     * @param  array   $parameters
      * @return mixed
      */
     public function __call($method, $parameters)
     {
-        return $this->driver()->$method(...$parameters);
+        return call_user_func_array([$this->driver(), $method], $parameters);
     }
 }

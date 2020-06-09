@@ -2,14 +2,17 @@
 
 namespace Illuminate\Bus;
 
-use Illuminate\Contracts\Bus\Dispatcher as DispatcherContract;
-use Illuminate\Contracts\Bus\QueueingDispatcher as QueueingDispatcherContract;
-use Illuminate\Contracts\Queue\Factory as QueueFactoryContract;
-use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
 
-class BusServiceProvider extends ServiceProvider implements DeferrableProvider
+class BusServiceProvider extends ServiceProvider
 {
+    /**
+     * Indicates if loading of the provider is deferred.
+     *
+     * @var bool
+     */
+    protected $defer = true;
+
     /**
      * Register the service provider.
      *
@@ -17,18 +20,18 @@ class BusServiceProvider extends ServiceProvider implements DeferrableProvider
      */
     public function register()
     {
-        $this->app->singleton(Dispatcher::class, function ($app) {
+        $this->app->singleton('Illuminate\Bus\Dispatcher', function ($app) {
             return new Dispatcher($app, function ($connection = null) use ($app) {
-                return $app[QueueFactoryContract::class]->connection($connection);
+                return $app['Illuminate\Contracts\Queue\Factory']->connection($connection);
             });
         });
 
         $this->app->alias(
-            Dispatcher::class, DispatcherContract::class
+            'Illuminate\Bus\Dispatcher', 'Illuminate\Contracts\Bus\Dispatcher'
         );
 
         $this->app->alias(
-            Dispatcher::class, QueueingDispatcherContract::class
+            'Illuminate\Bus\Dispatcher', 'Illuminate\Contracts\Bus\QueueingDispatcher'
         );
     }
 
@@ -40,9 +43,9 @@ class BusServiceProvider extends ServiceProvider implements DeferrableProvider
     public function provides()
     {
         return [
-            Dispatcher::class,
-            DispatcherContract::class,
-            QueueingDispatcherContract::class,
+            'Illuminate\Bus\Dispatcher',
+            'Illuminate\Contracts\Bus\Dispatcher',
+            'Illuminate\Contracts\Bus\QueueingDispatcher',
         ];
     }
 }

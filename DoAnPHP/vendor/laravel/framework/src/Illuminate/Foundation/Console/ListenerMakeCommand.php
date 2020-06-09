@@ -2,8 +2,8 @@
 
 namespace Illuminate\Foundation\Console;
 
-use Illuminate\Console\GeneratorCommand;
 use Illuminate\Support\Str;
+use Illuminate\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class ListenerMakeCommand extends GeneratorCommand
@@ -30,6 +30,20 @@ class ListenerMakeCommand extends GeneratorCommand
     protected $type = 'Listener';
 
     /**
+     * Execute the console command.
+     *
+     * @return void
+     */
+    public function fire()
+    {
+        if (! $this->option('event')) {
+            return $this->error('Missing required option: --event');
+        }
+
+        parent::fire();
+    }
+
+    /**
      * Build the class with the given name.
      *
      * @param  string  $name
@@ -37,23 +51,23 @@ class ListenerMakeCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
+        $stub = parent::buildClass($name);
+
         $event = $this->option('event');
 
-        if (! Str::startsWith($event, [
-            $this->laravel->getNamespace(),
-            'Illuminate',
-            '\\',
-        ])) {
+        if (! Str::startsWith($event, $this->laravel->getNamespace()) && ! Str::startsWith($event, 'Illuminate')) {
             $event = $this->laravel->getNamespace().'Events\\'.$event;
         }
 
         $stub = str_replace(
-            'DummyEvent', class_basename($event), parent::buildClass($name)
+            'DummyEvent', class_basename($event), $stub
         );
 
-        return str_replace(
-            'DummyFullEvent', trim($event, '\\'), $stub
+        $stub = str_replace(
+            'DummyFullEvent', $event, $stub
         );
+
+        return $stub;
     }
 
     /**
@@ -64,14 +78,10 @@ class ListenerMakeCommand extends GeneratorCommand
     protected function getStub()
     {
         if ($this->option('queued')) {
-            return $this->option('event')
-                        ? __DIR__.'/stubs/listener-queued.stub'
-                        : __DIR__.'/stubs/listener-queued-duck.stub';
+            return __DIR__.'/stubs/listener-queued.stub';
+        } else {
+            return __DIR__.'/stubs/listener.stub';
         }
-
-        return $this->option('event')
-                    ? __DIR__.'/stubs/listener.stub'
-                    : __DIR__.'/stubs/listener-duck.stub';
     }
 
     /**
@@ -104,9 +114,9 @@ class ListenerMakeCommand extends GeneratorCommand
     protected function getOptions()
     {
         return [
-            ['event', 'e', InputOption::VALUE_OPTIONAL, 'The event class being listened for'],
+            ['event', null, InputOption::VALUE_REQUIRED, 'The event class being listened for.'],
 
-            ['queued', null, InputOption::VALUE_NONE, 'Indicates the event listener should be queued'],
+            ['queued', null, InputOption::VALUE_NONE, 'Indicates the event listener should be queued.'],
         ];
     }
 }

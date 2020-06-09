@@ -2,8 +2,8 @@
 
 namespace Illuminate\View\Compilers;
 
-use Illuminate\Filesystem\Filesystem;
 use InvalidArgumentException;
+use Illuminate\Filesystem\Filesystem;
 
 abstract class Compiler
 {
@@ -68,7 +68,8 @@ abstract class Compiler
             return true;
         }
 
-        return $this->files->lastModified($path) >=
-               $this->files->lastModified($compiled);
+        $lastModified = $this->files->lastModified($path);
+
+        return $lastModified >= $this->files->lastModified($compiled);
     }
 }

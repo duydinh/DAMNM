@@ -2,39 +2,30 @@
 
 namespace Illuminate\Http;
 
+use Exception;
 use ArrayObject;
-use Illuminate\Contracts\Support\Arrayable;
+use JsonSerializable;
 use Illuminate\Contracts\Support\Jsonable;
 use Illuminate\Contracts\Support\Renderable;
-use Illuminate\Support\Traits\Macroable;
-use JsonSerializable;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\Response as BaseResponse;
 
-class Response extends SymfonyResponse
+class Response extends BaseResponse
 {
-    use ResponseTrait, Macroable {
-        Macroable::__call as macroCall;
-    }
+    use ResponseTrait;
 
     /**
-     * Create a new HTTP response.
+     * The original content of the response.
      *
-     * @param  mixed  $content
-     * @param  int  $status
-     * @param  array  $headers
-     * @return void
-     *
-     * @throws \InvalidArgumentException
+     * @var mixed
      */
-    public function __construct($content = '', $status = 200, array $headers = [])
-    {
-        $this->headers = new ResponseHeaderBag($headers);
+    public $original;
 
-        $this->setContent($content);
-        $this->setStatusCode($status);
-        $this->setProtocolVersion('1.0');
-    }
+    /**
+     * The exception that triggered the error response (if applicable).
+     *
+     * @var \Exception
+     */
+    public $exception;
 
     /**
      * Set the content on the response.
@@ -62,9 +53,22 @@ class Response extends SymfonyResponse
             $content = $content->render();
         }
 
-        parent::setContent($content);
+        return parent::setContent($content);
+    }
 
-        return $this;
+    /**
+     * Morph the given content into JSON.
+     *
+     * @param  mixed   $content
+     * @return string
+     */
+    protected function morphToJson($content)
+    {
+        if ($content instanceof Jsonable) {
+            return $content->toJson();
+        }
+
+        return json_encode($content);
     }
 
     /**
@@ -75,27 +79,32 @@ class Response extends SymfonyResponse
      */
     protected function shouldBeJson($content)
     {
-        return $content instanceof Arrayable ||
-               $content instanceof Jsonable ||
+        return $content instanceof Jsonable ||
                $content instanceof ArrayObject ||
                $content instanceof JsonSerializable ||
                is_array($content);
     }
 
     /**
-     * Morph the given content into JSON.
+     * Get the original response content.
      *
-     * @param  mixed  $content
-     * @return string
+     * @return mixed
      */
-    protected function morphToJson($content)
+    public function getOriginalContent()
     {
-        if ($content instanceof Jsonable) {
-            return $content->toJson();
-        } elseif ($content instanceof Arrayable) {
-            return json_encode($content->toArray());
-        }
+        return $this->original;
+    }
 
-        return json_encode($content);
+    /**
+     * Set the exception to attach to the response.
+     *
+     * @param  \Exception  $e
+     * @return $this
+     */
+    public function withException(Exception $e)
+    {
+        $this->exception = $e;
+
+        return $this;
     }
 }

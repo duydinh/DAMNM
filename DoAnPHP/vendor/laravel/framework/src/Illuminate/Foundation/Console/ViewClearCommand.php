@@ -2,9 +2,9 @@
 
 namespace Illuminate\Foundation\Console;
 
+use RuntimeException;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
-use RuntimeException;
 
 class ViewClearCommand extends Command
 {
@@ -46,10 +46,8 @@ class ViewClearCommand extends Command
      * Execute the console command.
      *
      * @return void
-     *
-     * @throws \RuntimeException
      */
-    public function handle()
+    public function fire()
     {
         $path = $this->laravel['config']['view.compiled'];
 

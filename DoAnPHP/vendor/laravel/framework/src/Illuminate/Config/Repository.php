@@ -3,8 +3,8 @@
 namespace Illuminate\Config;
 
 use ArrayAccess;
-use Illuminate\Contracts\Config\Repository as ConfigContract;
 use Illuminate\Support\Arr;
+use Illuminate\Contracts\Config\Repository as ConfigContract;
 
 class Repository implements ArrayAccess, ConfigContract
 {
@@ -40,52 +40,29 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Get the specified configuration value.
      *
-     * @param  array|string  $key
-     * @param  mixed  $default
+     * @param  string  $key
+     * @param  mixed   $default
      * @return mixed
      */
     public function get($key, $default = null)
     {
-        if (is_array($key)) {
-            return $this->getMany($key);
-        }
-
         return Arr::get($this->items, $key, $default);
-    }
-
-    /**
-     * Get many configuration values.
-     *
-     * @param  array  $keys
-     * @return array
-     */
-    public function getMany($keys)
-    {
-        $config = [];
-
-        foreach ($keys as $key => $default) {
-            if (is_numeric($key)) {
-                [$key, $default] = [$default, null];
-            }
-
-            $config[$key] = Arr::get($this->items, $key, $default);
-        }
-
-        return $config;
     }
 
     /**
      * Set a given configuration value.
      *
      * @param  array|string  $key
-     * @param  mixed  $value
+     * @param  mixed   $value
      * @return void
      */
     public function set($key, $value = null)
     {
-        $keys = is_array($key) ? $key : [$key => $value];
-
-        foreach ($keys as $key => $value) {
+        if (is_array($key)) {
+            foreach ($key as $innerKey => $innerValue) {
+                Arr::set($this->items, $innerKey, $innerValue);
+            }
+        } else {
             Arr::set($this->items, $key, $value);
         }
     }

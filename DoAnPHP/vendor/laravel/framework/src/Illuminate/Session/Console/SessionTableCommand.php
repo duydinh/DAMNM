@@ -3,8 +3,8 @@
 namespace Illuminate\Session\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Composer;
+use Illuminate\Filesystem\Filesystem;
 
 class SessionTableCommand extends Command
 {
@@ -54,7 +54,7 @@ class SessionTableCommand extends Command
      *
      * @return void
      */
-    public function handle()
+    public function fire()
     {
         $fullPath = $this->createBaseMigration();
 

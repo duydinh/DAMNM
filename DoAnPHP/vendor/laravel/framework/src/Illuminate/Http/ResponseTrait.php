@@ -2,26 +2,10 @@
 
 namespace Illuminate\Http;
 
-use Illuminate\Http\Exceptions\HttpResponseException;
-use Symfony\Component\HttpFoundation\HeaderBag;
-use Throwable;
+use Illuminate\Http\Exception\HttpResponseException;
 
 trait ResponseTrait
 {
-    /**
-     * The original content of the response.
-     *
-     * @var mixed
-     */
-    public $original;
-
-    /**
-     * The exception that triggered the error response (if applicable).
-     *
-     * @var \Throwable|null
-     */
-    public $exception;
-
     /**
      * Get the status code for the response.
      *
@@ -43,28 +27,16 @@ trait ResponseTrait
     }
 
     /**
-     * Get the original response content.
-     *
-     * @return mixed
-     */
-    public function getOriginalContent()
-    {
-        $original = $this->original;
-
-        return $original instanceof self ? $original->{__FUNCTION__}() : $original;
-    }
-
-    /**
      * Set a header on the Response.
      *
      * @param  string  $key
-     * @param  array|string  $values
-     * @param  bool  $replace
+     * @param  string  $value
+     * @param  bool    $replace
      * @return $this
      */
-    public function header($key, $values, $replace = true)
+    public function header($key, $value, $replace = true)
     {
-        $this->headers->set($key, $values, $replace);
+        $this->headers->set($key, $value, $replace);
 
         return $this;
     }
@@ -72,15 +44,11 @@ trait ResponseTrait
     /**
      * Add an array of headers to the response.
      *
-     * @param  \Symfony\Component\HttpFoundation\HeaderBag|array  $headers
+     * @param  array  $headers
      * @return $this
      */
-    public function withHeaders($headers)
+    public function withHeaders(array $headers)
     {
-        if ($headers instanceof HeaderBag) {
-            $headers = $headers->all();
-        }
-
         foreach ($headers as $key => $value) {
             $this->headers->set($key, $value);
         }
@@ -117,34 +85,9 @@ trait ResponseTrait
     }
 
     /**
-     * Get the callback of the response.
-     *
-     * @return string|null
-     */
-    public function getCallback()
-    {
-        return $this->callback ?? null;
-    }
-
-    /**
-     * Set the exception to attach to the response.
-     *
-     * @param  \Throwable  $e
-     * @return $this
-     */
-    public function withException(Throwable $e)
-    {
-        $this->exception = $e;
-
-        return $this;
-    }
-
-    /**
      * Throws the response in a HttpResponseException instance.
      *
-     * @return void
-     *
-     * @throws \Illuminate\Http\Exceptions\HttpResponseException
+     * @throws \Illuminate\Http\Exception\HttpResponseException
      */
     public function throwResponse()
     {

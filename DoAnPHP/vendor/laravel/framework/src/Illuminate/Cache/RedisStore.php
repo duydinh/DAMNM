@@ -2,15 +2,15 @@
 
 namespace Illuminate\Cache;
 
-use Illuminate\Contracts\Cache\LockProvider;
-use Illuminate\Contracts\Redis\Factory as Redis;
+use Illuminate\Contracts\Cache\Store;
+use Illuminate\Redis\Database as Redis;
 
-class RedisStore extends TaggableStore implements LockProvider
+class RedisStore extends TaggableStore implements Store
 {
     /**
-     * The Redis factory implementation.
+     * The Redis database connection.
      *
-     * @var \Illuminate\Contracts\Redis\Factory
+     * @var \Illuminate\Redis\Database
      */
     protected $redis;
 
@@ -31,7 +31,7 @@ class RedisStore extends TaggableStore implements LockProvider
     /**
      * Create a new Redis store.
      *
-     * @param  \Illuminate\Contracts\Redis\Factory  $redis
+     * @param  \Illuminate\Redis\Database  $redis
      * @param  string  $prefix
      * @param  string  $connection
      * @return void
@@ -40,7 +40,7 @@ class RedisStore extends TaggableStore implements LockProvider
     {
         $this->redis = $redis;
         $this->setPrefix($prefix);
-        $this->setConnection($connection);
+        $this->connection = $connection;
     }
 
     /**
@@ -51,9 +51,9 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function get($key)
     {
-        $value = $this->connection()->get($this->prefix.$key);
-
-        return ! is_null($value) ? $this->unserialize($value) : null;
+        if (! is_null($value = $this->connection()->get($this->prefix.$key))) {
+            return is_numeric($value) ? $value : unserialize($value);
+        }
     }
 
     /**
@@ -66,80 +66,59 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function many(array $keys)
     {
-        $results = [];
+        $return = [];
 
-        $values = $this->connection()->mget(array_map(function ($key) {
+        $prefixedKeys = array_map(function ($key) {
             return $this->prefix.$key;
-        }, $keys));
+        }, $keys);
+
+        $values = $this->connection()->mget($prefixedKeys);
 
         foreach ($values as $index => $value) {
-            $results[$keys[$index]] = ! is_null($value) ? $this->unserialize($value) : null;
+            $return[$keys[$index]] = is_numeric($value) ? $value : unserialize($value);
         }
 
-        return $results;
+        return $return;
     }
 
     /**
-     * Store an item in the cache for a given number of seconds.
+     * Store an item in the cache for a given number of minutes.
      *
      * @param  string  $key
-     * @param  mixed  $value
-     * @param  int  $seconds
-     * @return bool
+     * @param  mixed   $value
+     * @param  int     $minutes
+     * @return void
      */
-    public function put($key, $value, $seconds)
+    public function put($key, $value, $minutes)
     {
-        return (bool) $this->connection()->setex(
-            $this->prefix.$key, (int) max(1, $seconds), $this->serialize($value)
-        );
+        $value = is_numeric($value) ? $value : serialize($value);
+
+        $this->connection()->setex($this->prefix.$key, (int) max(1, $minutes * 60), $value);
     }
 
     /**
-     * Store multiple items in the cache for a given number of seconds.
+     * Store multiple items in the cache for a given number of minutes.
      *
      * @param  array  $values
-     * @param  int  $seconds
-     * @return bool
+     * @param  int  $minutes
+     * @return void
      */
-    public function putMany(array $values, $seconds)
+    public function putMany(array $values, $minutes)
     {
         $this->connection()->multi();
 
-        $manyResult = null;
-
         foreach ($values as $key => $value) {
-            $result = $this->put($key, $value, $seconds);
-
-            $manyResult = is_null($manyResult) ? $result : $result && $manyResult;
+            $this->put($key, $value, $minutes);
         }
 
         $this->connection()->exec();
-
-        return $manyResult ?: false;
-    }
-
-    /**
-     * Store an item in the cache if the key doesn't exist.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @param  int  $seconds
-     * @return bool
-     */
-    public function add($key, $value, $seconds)
-    {
-        $lua = "return redis.call('exists',KEYS[1])<1 and redis.call('setex',KEYS[1],ARGV[2],ARGV[1])";
-
-        return (bool) $this->connection()->eval(
-            $lua, 1, $this->prefix.$key, $this->serialize($value), (int) max(1, $seconds)
-        );
     }
 
     /**
      * Increment the value of an item in the cache.
      *
      * @param  string  $key
-     * @param  mixed  $value
+     * @param  mixed   $value
      * @return int
      */
     public function increment($key, $value = 1)
@@ -151,7 +130,7 @@ class RedisStore extends TaggableStore implements LockProvider
      * Decrement the value of an item in the cache.
      *
      * @param  string  $key
-     * @param  mixed  $value
+     * @param  mixed   $value
      * @return int
      */
     public function decrement($key, $value = 1)
@@ -163,37 +142,14 @@ class RedisStore extends TaggableStore implements LockProvider
      * Store an item in the cache indefinitely.
      *
      * @param  string  $key
-     * @param  mixed  $value
-     * @return bool
+     * @param  mixed   $value
+     * @return void
      */
     public function forever($key, $value)
     {
-        return (bool) $this->connection()->set($this->prefix.$key, $this->serialize($value));
-    }
+        $value = is_numeric($value) ? $value : serialize($value);
 
-    /**
-     * Get a lock instance.
-     *
-     * @param  string  $name
-     * @param  int  $seconds
-     * @param  string|null  $owner
-     * @return \Illuminate\Contracts\Cache\Lock
-     */
-    public function lock($name, $seconds = 0, $owner = null)
-    {
-        return new RedisLock($this->connection(), $this->prefix.$name, $seconds, $owner);
-    }
-
-    /**
-     * Restore a lock instance using the owner identifier.
-     *
-     * @param  string  $name
-     * @param  string  $owner
-     * @return \Illuminate\Contracts\Cache\Lock
-     */
-    public function restoreLock($name, $owner)
-    {
-        return $this->lock($name, 0, $owner);
+        $this->connection()->set($this->prefix.$key, $value);
     }
 
     /**
@@ -210,13 +166,11 @@ class RedisStore extends TaggableStore implements LockProvider
     /**
      * Remove all items from the cache.
      *
-     * @return bool
+     * @return void
      */
     public function flush()
     {
         $this->connection()->flushdb();
-
-        return true;
     }
 
     /**
@@ -227,15 +181,13 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function tags($names)
     {
-        return new RedisTaggedCache(
-            $this, new TagSet($this, is_array($names) ? $names : func_get_args())
-        );
+        return new RedisTaggedCache($this, new TagSet($this, is_array($names) ? $names : func_get_args()));
     }
 
     /**
      * Get the Redis connection instance.
      *
-     * @return \Illuminate\Redis\Connections\Connection
+     * @return \Predis\ClientInterface
      */
     public function connection()
     {
@@ -256,7 +208,7 @@ class RedisStore extends TaggableStore implements LockProvider
     /**
      * Get the Redis database instance.
      *
-     * @return \Illuminate\Contracts\Redis\Factory
+     * @return \Illuminate\Redis\Database
      */
     public function getRedis()
     {
@@ -282,27 +234,5 @@ class RedisStore extends TaggableStore implements LockProvider
     public function setPrefix($prefix)
     {
         $this->prefix = ! empty($prefix) ? $prefix.':' : '';
-    }
-
-    /**
-     * Serialize the value.
-     *
-     * @param  mixed  $value
-     * @return mixed
-     */
-    protected function serialize($value)
-    {
-        return is_numeric($value) && ! in_array($value, [INF, -INF]) && ! is_nan($value) ? $value : serialize($value);
-    }
-
-    /**
-     * Unserialize the value.
-     *
-     * @param  mixed  $value
-     * @return mixed
-     */
-    protected function unserialize($value)
-    {
-        return is_numeric($value) ? $value : unserialize($value);
     }
 }

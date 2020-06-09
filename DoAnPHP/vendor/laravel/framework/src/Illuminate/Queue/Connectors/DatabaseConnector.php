@@ -2,8 +2,9 @@
 
 namespace Illuminate\Queue\Connectors;
 
-use Illuminate\Database\ConnectionResolverInterface;
+use Illuminate\Support\Arr;
 use Illuminate\Queue\DatabaseQueue;
+use Illuminate\Database\ConnectionResolverInterface;
 
 class DatabaseConnector implements ConnectorInterface
 {
@@ -34,10 +35,10 @@ class DatabaseConnector implements ConnectorInterface
     public function connect(array $config)
     {
         return new DatabaseQueue(
-            $this->connections->connection($config['connection'] ?? null),
+            $this->connections->connection(Arr::get($config, 'connection')),
             $config['table'],
             $config['queue'],
-            $config['retry_after'] ?? 60
+            Arr::get($config, 'expire', 60)
         );
     }
 }

@@ -7,52 +7,31 @@ use Exception;
 class AuthenticationException extends Exception
 {
     /**
-     * All of the guards that were checked.
+     * The guard instance.
      *
-     * @var array
+     * @var \Illuminate\Contracts\Auth\Guard
      */
-    protected $guards;
-
-    /**
-     * The path the user should be redirected to.
-     *
-     * @var string
-     */
-    protected $redirectTo;
+    protected $guard;
 
     /**
      * Create a new authentication exception.
      *
-     * @param  string  $message
-     * @param  array  $guards
-     * @param  string|null  $redirectTo
-     * @return void
+     * @param \Illuminate\Contracts\Auth\Guard|null  $guard
      */
-    public function __construct($message = 'Unauthenticated.', array $guards = [], $redirectTo = null)
+    public function __construct($guard = null)
     {
-        parent::__construct($message);
+        $this->guard = $guard;
 
-        $this->guards = $guards;
-        $this->redirectTo = $redirectTo;
+        parent::__construct('Unauthenticated.');
     }
 
     /**
-     * Get the guards that were checked.
+     * Get the guard instance.
      *
-     * @return array
+     * @return \Illuminate\Contracts\Auth\Guard|null
      */
-    public function guards()
+    public function guard()
     {
-        return $this->guards;
-    }
-
-    /**
-     * Get the path the user should be redirected to.
-     *
-     * @return string
-     */
-    public function redirectTo()
-    {
-        return $this->redirectTo;
+        return $this->guard;
     }
 }

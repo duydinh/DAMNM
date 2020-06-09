@@ -3,7 +3,6 @@
 namespace Illuminate\Foundation\Console;
 
 use Illuminate\Console\GeneratorCommand;
-use Illuminate\Support\Str;
 
 class TestMakeCommand extends GeneratorCommand
 {
@@ -12,7 +11,7 @@ class TestMakeCommand extends GeneratorCommand
      *
      * @var string
      */
-    protected $signature = 'make:test {name : The name of the class} {--unit : Create a unit test}';
+    protected $name = 'make:test';
 
     /**
      * The console command description.
@@ -35,22 +34,7 @@ class TestMakeCommand extends GeneratorCommand
      */
     protected function getStub()
     {
-        return $this->option('unit')
-                    ? $this->resolveStubPath('/stubs/test.unit.stub')
-                    : $this->resolveStubPath('/stubs/test.stub');
-    }
-
-    /**
-     * Resolve the fully-qualified path to the stub.
-     *
-     * @param  string  $stub
-     * @return string
-     */
-    protected function resolveStubPath($stub)
-    {
-        return file_exists($customPath = $this->laravel->basePath(trim($stub, '/')))
-                        ? $customPath
-                        : __DIR__.$stub;
+        return __DIR__.'/stubs/test.stub';
     }
 
     /**
@@ -61,9 +45,9 @@ class TestMakeCommand extends GeneratorCommand
      */
     protected function getPath($name)
     {
-        $name = Str::replaceFirst($this->rootNamespace(), '', $name);
+        $name = str_replace($this->laravel->getNamespace(), '', $name);
 
-        return base_path('tests').str_replace('\\', '/', $name).'.php';
+        return $this->laravel['path.base'].'/tests/'.str_replace('\\', '/', $name).'.php';
     }
 
     /**
@@ -74,20 +58,6 @@ class TestMakeCommand extends GeneratorCommand
      */
     protected function getDefaultNamespace($rootNamespace)
     {
-        if ($this->option('unit')) {
-            return $rootNamespace.'\Unit';
-        } else {
-            return $rootNamespace.'\Feature';
-        }
-    }
-
-    /**
-     * Get the root namespace for the class.
-     *
-     * @return string
-     */
-    protected function rootNamespace()
-    {
-        return 'Tests';
+        return $rootNamespace;
     }
 }

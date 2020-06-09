@@ -17,12 +17,10 @@ use Symfony\Component\VarDumper\Cloner\Stub;
  * Casts a caster's Stub.
  *
  * @author Nicolas Grekas <p@tchwork.com>
- *
- * @final
  */
 class StubCaster
 {
-    public static function castStub(Stub $c, array $a, Stub $stub, bool $isNested)
+    public static function castStub(Stub $c, array $a, Stub $stub, $isNested)
     {
         if ($isNested) {
             $stub->type = $c->type;
@@ -30,49 +28,39 @@ class StubCaster
             $stub->value = $c->value;
             $stub->handle = $c->handle;
             $stub->cut = $c->cut;
-            $stub->attr = $c->attr;
 
-            if (Stub::TYPE_REF === $c->type && !$c->class && \is_string($c->value) && !preg_match('//u', $c->value)) {
-                $stub->type = Stub::TYPE_STRING;
-                $stub->class = Stub::STRING_BINARY;
-            }
-
-            $a = [];
+            return array();
         }
-
-        return $a;
     }
 
-    public static function castCutArray(CutArrayStub $c, array $a, Stub $stub, bool $isNested)
+    public static function castCutArray(CutArrayStub $c, array $a, Stub $stub, $isNested)
     {
         return $isNested ? $c->preservedSubset : $a;
     }
 
-    public static function cutInternals($obj, array $a, Stub $stub, bool $isNested)
+    public static function cutInternals($obj, array $a, Stub $stub, $isNested)
     {
         if ($isNested) {
-            $stub->cut += \count($a);
+            $stub->cut += count($a);
 
-            return [];
+            return array();
         }
 
         return $a;
     }
 
-    public static function castEnum(EnumStub $c, array $a, Stub $stub, bool $isNested)
+    public static function castEnum(EnumStub $c, array $a, Stub $stub, $isNested)
     {
         if ($isNested) {
-            $stub->class = $c->dumpKeys ? '' : null;
+            $stub->class = '';
             $stub->handle = 0;
             $stub->value = null;
-            $stub->cut = $c->cut;
-            $stub->attr = $c->attr;
 
-            $a = [];
+            $a = array();
 
             if ($c->value) {
                 foreach (array_keys($c->value) as $k) {
-                    $keys[] = !isset($k[0]) || "\0" !== $k[0] ? Caster::PREFIX_VIRTUAL.$k : $k;
+                    $keys[] = Caster::PREFIX_VIRTUAL.$k;
                 }
                 // Preserve references with array_combine()
                 $a = array_combine($keys, $c->value);
