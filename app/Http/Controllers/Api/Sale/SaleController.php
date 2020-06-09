@@ -88,16 +88,16 @@ class SaleController extends Controller {
 				   ->decrement( 'number', $item->number );
 			}
 			// tính tiền nợ cho khách
-			$debt = intval( $invoice->total_price ) - intval( $invoice->discount ) + intval( $invoice->other_price ) - intval( $invoice->total_pay );
+		/*	$debt = intval( $invoice->total_price ) - intval( $invoice->discount ) + intval( $invoice->other_price ) - intval( $invoice->total_pay );
 			\DB::table( Tables::$tb_customer )->where( 'code', 'LIKE', $invoice->customer )
-			   ->increment( "debt", $debt );
+			   ->increment( "debt", $debt );*/
 			//Tính tiền mua hàng
 			\DB::table( Tables::$tb_customer )->where( 'code', 'LIKE', $invoice->customer )
 			   ->increment( "price", $invoice->total_price );
 			//Lượt mua hàng
-			\DB::table( Tables::$tb_customer )->where( 'code', 'LIKE', $invoice->customer )
+		/*	\DB::table( Tables::$tb_customer )->where( 'code', 'LIKE', $invoice->customer )
 			   ->increment( "hit", 1 );
-			\DB::commit();
+			\DB::commit();*/
 
 			return true;
 		} catch ( \Exception $exception ) {
@@ -108,7 +108,7 @@ class SaleController extends Controller {
 	}
 
 	//Check point to customer
-	public static function checkPoint( $invoice ) {
+/*	public static function checkPoint( $invoice ) {
 		//get settting check point
 		$setting = \DB::table( Tables::$tb_setting )->where( [
 			'name'   => 'settings',
@@ -128,5 +128,5 @@ class SaleController extends Controller {
 				}
 			}
 		}
-	}
+	}*/
 }
